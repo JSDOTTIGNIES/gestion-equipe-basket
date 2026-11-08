@@ -1,7 +1,7 @@
 /* JS Dottignies — interface GitHub Pages + Supabase */
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state = {db:null,user:null,coach:false,players:[],matches:[],selections:[],assignments:[],guardians:[],offers:[],links:[],responses:[],attendance:[],parentRoles:[],view:'matches'};
+const state = {db:null,user:null,coach:false,players:[],matches:[],selections:[],assignments:[],guardians:[],offers:[],links:[],responses:[],attendance:[],parentRoles:[],view:'matches',certificates:[]};
 const formatDate = (iso) => new Intl.DateTimeFormat('fr-BE',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(iso+'T12:00:00Z'));
 const month = (iso) => new Intl.DateTimeFormat('fr-BE',{month:'short',timeZone:'UTC'}).format(new Date(iso+'T12:00:00Z'));
 const hm = (t) => t ? String(t).slice(0,5).replace(':','h') : 'À définir';
@@ -37,7 +37,7 @@ async function refreshAuth(){
   if(pErr)throw pErr;
   state.coach=profile?.role==='coach';$('roleBadge').textContent=state.coach?'ACCÈS COACH':'ESPACE PARENT';
   document.querySelectorAll('.admin-only').forEach(x=>x.hidden=!state.coach);
-  await loadAll();showView(state.view);
+  await loadAll();if(state.coach)await loadCertificates();else state.certificates=[];showView(state.view);
  }catch(e){toast('Erreur : '+e.message);console.error(e)}finally{refreshing=false}
 }
 async function loadAll(){
@@ -47,11 +47,11 @@ async function loadAll(){
  results.forEach((r,i)=>{if(r.error)throw r.error;state[({transport_offers:'offers',parent_link_requests:'links',match_responses:'responses',child_attendance:'attendance',parent_roles:'parentRoles'})[tables[i]]||tables[i]]=r.data||[]});
  renderAll();
 }
-function showView(view){if(view==='team'&&!state.coach)view='matches';state.view=view;for(const v of ['matches','transport','team'])$(v+'View').hidden=v!==view;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));const texts={matches:['Calendrier <em>des matchs.</em>','Suivez les rencontres, les convocations et les responsabilités.'],transport:['En route <em>ensemble.</em>','Organisez les voitures pour chaque déplacement.'],team:['Notre <em>effectif.</em>','Gérez les joueurs et les coordonnées des parents.']};$('pageTitle').innerHTML=texts[view][0];$('pageSubtitle').textContent=texts[view][1]}
+function showView(view){if(['team','certificates'].includes(view)&&!state.coach)view='matches';state.view=view;for(const v of ['matches','transport','team','certificates'])$(v+'View').hidden=v!==view;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));const texts={matches:['Calendrier <em>des matchs.</em>','Suivez les rencontres, les convocations et les responsabilités.'],transport:['En route <em>ensemble.</em>','Organisez les voitures pour chaque déplacement.'],team:['Notre <em>effectif.</em>','Gérez les joueurs et les coordonnées des parents.'],certificates:['Certificats <em>médicaux.</em>','Archive privée réservée au coach.']};$('pageTitle').innerHTML=texts[view][0];$('pageSubtitle').textContent=texts[view][1]}
 function renderAll(){
  const home=state.matches.filter(m=>m.is_home).length;const away=state.matches.length-home;
  $('metrics').innerHTML=`<div class="metric"><span class="metric-icon">🏀</span><div><strong>${state.matches.length}</strong><small>Matchs programmés</small></div></div><div class="metric"><span class="metric-icon">⌂</span><div><strong>${home}</strong><small>À domicile</small></div></div><div class="metric"><span class="metric-icon">🚗</span><div><strong>${away}</strong><small>Déplacements</small></div></div>`;
- renderMatches();renderTransport();renderFamily();if(state.coach)renderTeam();
+ renderMatches();renderTransport();renderFamily();if(state.coach){renderTeam();renderCertificates();}
 }
 function renderMatches(){
  const f=$('matchFilter').value;
@@ -223,6 +223,83 @@ function importMatchesModal(){if(!state.coach)return;
   }catch(error){box.textContent='Impossible de lire le calendrier : '+error.message}
  });
 }
+// V10 — certificats médicaux confidentiels, storage privé, accès coach seul.
+const CERT_BUCKET='medical-certificates';
+const CERT_ALLOWED_EXT=new Set(['pdf','jpg','jpeg','png']);
+const CERT_MAX_BYTES=10*1024*1024;
+async function loadCertificates(){
+ if(!state.coach){state.certificates=[];return;}
+ const r=await state.db.from('medical_certificates').select('id,player_id,file_name,storage_path,mime_type,file_size,issued_on,expires_on,created_at').order('created_at',{ascending:false});
+ if(r.error)throw new Error('Certificats médicaux : '+r.error.message);
+ state.certificates=r.data||[];renderCertificates();
+}
+function certStatus(c){
+ if(!c)return '<span class="chip away">Aucun document</span>';
+ if(c.expires_on){const today=new Date().toISOString().slice(0,10);if(c.expires_on<today)return '<span class="chip">Expiré</span>';return '<span class="chip away">Valide selon la date indiquée</span>';}
+ return '<span class="chip away">Date de validité non renseignée</span>';
+}
+function renderCertificates(){
+ const el=$('certificatesList');if(!el)return;
+ if(!state.coach){el.innerHTML='';return;}
+ el.innerHTML=state.players.map(p=>{
+  const certs=state.certificates.filter(c=>c.player_id===p.id);
+  return `<article class="cert-player-card"><div class="cert-head"><div><strong>${esc(p.name)}</strong><small>${certs.length} certificat${certs.length>1?'s':''} archivé${certs.length>1?'s':''}</small></div><button class="button primary small" type="button" data-cert-add="${esc(p.id)}">+ Déposer</button></div>${certs.length?certs.map(c=>`<div class="cert-file"><div><b>${esc(c.file_name)}</b><small>Déposé le ${esc(new Date(c.created_at).toLocaleDateString('fr-BE'))}${c.issued_on?' · Établi le '+esc(c.issued_on):''}${c.expires_on?' · Échéance : '+esc(c.expires_on):''} · ${Math.ceil(c.file_size/1024)} Ko</small>${certStatus(c)}</div><div class="cert-actions"><button class="button small" type="button" data-cert-view="${esc(c.id)}">Consulter</button><button class="button small" type="button" data-cert-delete="${esc(c.id)}">Supprimer</button></div></div>`).join(''):'<p class="small-text">Aucun certificat enregistré.</p>'}</article>`;
+ }).join('')||'<div class="empty">Ajoutez des joueurs avant de déposer des certificats.</div>';
+}
+function addCertificateModal(playerId){
+ if(!state.coach)return;
+ const p=state.players.find(x=>x.id===playerId);if(!p)return;
+ showModal(`<h2 id="modalTitle">Certificat médical</h2><p class="modal-lead">${esc(p.name)} · Stockage confidentiel réservé au coach</p><form id="certUploadForm" class="cert-upload"><div class="form-field"><label for="certFile">Fichier PDF, JPEG ou PNG (10 Mo maximum)</label><input id="certFile" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required></div><div class="form-grid"><div class="form-field"><label for="certIssued">Date du certificat (facultatif)</label><input id="certIssued" type="date"></div><div class="form-field"><label for="certExpiry">Date de fin de validité (facultatif)</label><input id="certExpiry" type="date"></div></div><p class="small-text">Le fichier sera conservé dans un bucket Supabase privé. Il n'est pas publié sur GitHub.</p><div class="form-actions"><button class="button primary" type="submit">Enregistrer le certificat</button></div></form>`);
+ $('certUploadForm').addEventListener('submit',async e=>{
+  e.preventDefault();const file=$('certFile').files[0];if(!file)return;
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  const mime=ext==='pdf'?'application/pdf':ext==='png'?'image/png':'image/jpeg';
+  if(!CERT_ALLOWED_EXT.has(ext)||file.size>CERT_MAX_BYTES||file.size===0){toast('Choisis un fichier PDF, JPG ou PNG de 10 Mo maximum.');return;}
+  const magic=new Uint8Array(await file.slice(0,8).arrayBuffer());
+  const isPdf=magic[0]===37&&magic[1]===80&&magic[2]===68&&magic[3]===70&&magic[4]===45;
+  const isJpg=magic[0]===255&&magic[1]===216&&magic[2]===255;
+  const isPng=magic[0]===137&&magic[1]===80&&magic[2]===78&&magic[3]===71;
+  if((ext==='pdf'&&!isPdf)||(ext==='png'&&!isPng)||(['jpg','jpeg'].includes(ext)&&!isJpg)){toast('Le format réel du fichier ne correspond pas à son extension.');return;}
+  const button=e.target.querySelector('button[type=submit]');button.disabled=true;button.textContent='Enregistrement…';
+  const issued=$('certIssued').value||null;const expires=$('certExpiry').value||null;
+  if(issued&&expires&&expires<issued){toast('La date de fin doit suivre la date du certificat.');button.disabled=false;button.textContent='Enregistrer le certificat';return;}
+  const path=`${playerId}/${crypto.randomUUID()}.${ext}`;
+  try{
+   mustOk(await state.db.storage.from(CERT_BUCKET).upload(path,file,{contentType:mime,upsert:false,cacheControl:'private'}));
+   const record=await state.db.from('medical_certificates').insert({player_id:playerId,file_name:file.name.slice(0,180),storage_path:path,mime_type:mime,file_size:file.size,issued_on:issued,expires_on:expires});
+   if(record.error){await state.db.storage.from(CERT_BUCKET).remove([path]);throw record.error;}
+   await loadCertificates();closeModal();toast('Certificat enregistré dans le stockage privé.');
+  }catch(err){console.error(err);toast('Dépôt impossible : '+(err.message||'Erreur inconnue'));button.disabled=false;button.textContent='Enregistrer le certificat';}
+ });
+}
+async function viewCertificate(id){
+ if(!state.coach)return;const c=state.certificates.find(x=>x.id===id);if(!c)return;
+ // Ouvrir l'onglet pendant le clic utilisateur pour éviter le bloqueur de pop-up.
+ const tab=window.open('about:blank','_blank');
+ if(tab)tab.opener=null;
+ try{
+  const r=await state.db.storage.from(CERT_BUCKET).createSignedUrl(c.storage_path,60);
+  const data=mustOk(r);
+  if(tab)tab.location.replace(data.signedUrl);
+  else toast('Autorise les fenêtres contextuelles pour consulter le certificat.');
+ }catch(err){if(tab)tab.close();toast('Consultation impossible : '+err.message)}
+}
+async function deleteCertificate(id){
+ if(!state.coach)return;const c=state.certificates.find(x=>x.id===id);if(!c)return;
+ if(!confirm(`Supprimer définitivement le certificat « ${c.file_name} » ?`))return;
+ try{
+  const removed=await state.db.storage.from(CERT_BUCKET).remove([c.storage_path]);mustOk(removed);
+  const dbDelete=await state.db.from('medical_certificates').delete().eq('id',id);mustOk(dbDelete);
+  await loadCertificates();toast('Certificat supprimé.');
+ }catch(err){toast('Suppression incomplète : '+err.message+' — vérifier le dossier dans Supabase.');}
+}
+document.addEventListener('click',e=>{
+ const btn=e.target.closest('[data-cert-add],[data-cert-view],[data-cert-delete]');if(!btn)return;
+ if(btn.dataset.certAdd)addCertificateModal(btn.dataset.certAdd);
+ else if(btn.dataset.certView)viewCertificate(btn.dataset.certView);
+ else if(btn.dataset.certDelete)deleteCertificate(btn.dataset.certDelete);
+});
+
 $('addMatchButton').addEventListener('click',addMatchModal);
 $('importMatchesButton').addEventListener('click',importMatchesModal);
 async function action(fn){try{await fn()}catch(e){console.error(e);toast('Erreur : '+(e.message||'Opération impossible'))}}
