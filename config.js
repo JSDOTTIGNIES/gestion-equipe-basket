@@ -5,4 +5,3 @@ window.JS_CONFIG = {
   supabaseAnonKey: "sb_publishable_Vmf5-hC6XwTB_L3UNlCrAw_7SJincJ4",
   coachLoginEmail: "coach@jsdottignies.be"
 };
-coachLoginEmail: "coach@jsdottignies.be"
