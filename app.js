@@ -192,7 +192,7 @@ $('coachLoginForm').addEventListener('submit',async e=>{
  const coachEmail=String(window.JS_CONFIG?.coachLoginEmail||'').trim().toLowerCase();
  const code=$('coachCode').value;
  if(!coachEmail){toast('Le compte coach doit d’abord être configuré par le développeur.');return;}
- if(code.length<10){toast('Code trop court : au moins 10 caractères.');return;}
+ if(!/^[0-9]{6}$/.test(code)){toast('Le code du coach doit comporter exactement 6 chiffres.');return;}
  const button=$('coachLoginForm').querySelector('button');button.disabled=true;
  try{
   const result=await state.db.auth.signInWithPassword({email:coachEmail,password:code});
