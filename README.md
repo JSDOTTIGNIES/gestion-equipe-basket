@@ -39,3 +39,21 @@ Cette méthode est une solution de transition adaptée à un petit groupe, **pas
 - GitHub : transférer **le contenu** de cette archive à la racine du dépôt, en préservant `config.js`.
 - Aucun SQL supplémentaire et aucun changement du code parent/coach.
 - Les icônes sur téléphones déjà installés peuvent nécessiter une réinstallation pour être actualisées.
+
+
+## V8 — Désignations lors des déplacements
+
+- À domicile : trois postes inchangés — Délégué de banc, Chrono, 24/14 secondes.
+- En déplacement : deux postes — **Feuille de match** et **Délégué de banc**.
+- Tirage automatique et équilibré entre les **familles de deux joueurs convoqués distincts**; une famille ne reçoit pas deux postes sur le même match. Le parent de la famille chargé de la fonction s'organise.
+- Le coach lance le tirage depuis la fiche du match et voit les noms désignés; les parents peuvent consulter ces désignations.
+- Les matchs et les convocations existants sont conservés.
+
+### Mise à jour
+
+1. **Supabase SQL Editor** : exécuter `supabase/migration_v8.sql` **avant** d'utiliser le tirage des déplacements.
+2. **GitHub** : remplacer `app.js` et `service-worker.js` depuis ce paquet. Les autres fichiers sont identiques à V7 et peuvent être conservés.
+3. Ne pas remplacer le `config.js` de production.
+4. Déploiement GitHub Pages puis rechargement forcé. Si l'application installée sur téléphone affiche l'ancienne version, fermer/réouvrir la PWA.
+
+Note : la fonction attribue les rôles à la **famille du joueur**, comme pour les matchs à domicile, et non à un compte Papa ou Maman individuellement. Une attribution à un parent nominatif nécessiterait une évolution complémentaire.
