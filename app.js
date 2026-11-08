@@ -23,7 +23,7 @@ async function refreshAuth(){
  try{
   const {data:{user},error}=await state.db.auth.getUser();if(error && error.name!=='AuthSessionMissingError')console.warn(error);
   state.user=user||null; $('setup').hidden=true;$('login').hidden=!!user;$('app').hidden=!user;$('logout').hidden=!user;
-  $('userEmail').textContent=user?.email||'';
+  $('userEmail').textContent=user?.email===window.JS_CONFIG?.coachLoginEmail?'Coach':(user?.email||'');
   if(!user)return;
   const {data:profile,error:pErr}=await state.db.from('profiles').select('role').eq('id',user.id).maybeSingle();
   if(pErr)throw pErr;
@@ -187,5 +187,21 @@ document.addEventListener('click',e=>{const target=e.target.closest('[data-match
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
 $('matchFilter').addEventListener('change',renderMatches);
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();const email=$('loginEmail').value.trim().toLowerCase();await action(async()=>{const redirectTo=location.href.split('#')[0].split('?')[0];mustOk(await state.db.auth.signInWithOtp({email,options:{emailRedirectTo:redirectTo,shouldCreateUser:true}}));toast('Vérifiez votre e-mail : lien de connexion envoyé.')})});
+$('coachLoginForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const coachEmail=String(window.JS_CONFIG?.coachLoginEmail||'').trim().toLowerCase();
+ const code=$('coachCode').value;
+ if(!coachEmail){toast('Le compte coach doit d’abord être configuré par le développeur.');return;}
+ if(code.length<10){toast('Code trop court : au moins 10 caractères.');return;}
+ const button=$('coachLoginForm').querySelector('button');button.disabled=true;
+ try{
+  const result=await state.db.auth.signInWithPassword({email:coachEmail,password:code});
+  mustOk(result);
+  $('coachCode').value='';
+  await refreshAuth();
+  if(!state.coach){await state.db.auth.signOut();toast('Ce compte n’a pas encore le rôle coach dans Supabase.');}
+ }catch(err){toast('Code incorrect ou compte coach non configuré.');console.warn('Connexion coach refusée',err?.message)}
+ finally{button.disabled=false}
+});
 $('logout').addEventListener('click',async()=>{if(!state.db)return;await state.db.auth.signOut();state.coach=false;state.user=null;closeModal();$('app').hidden=true;$('login').hidden=false;$('logout').hidden=true});
 boot();
