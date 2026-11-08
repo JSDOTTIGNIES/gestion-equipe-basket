@@ -57,3 +57,17 @@ Cette méthode est une solution de transition adaptée à un petit groupe, **pas
 4. Déploiement GitHub Pages puis rechargement forcé. Si l'application installée sur téléphone affiche l'ancienne version, fermer/réouvrir la PWA.
 
 Note : la fonction attribue les rôles à la **famille du joueur**, comme pour les matchs à domicile, et non à un compte Papa ou Maman individuellement. Une attribution à un parent nominatif nécessiterait une évolution complémentaire.
+
+
+## V9 – Correctif affichage des deux désignations à l'extérieur
+- La fiche des matchs à l'extérieur affiche systématiquement **Feuille de match** et **Délégué de banc**, même avant attribution (« À désigner »). Le bouton de tirage est disponible pour le coach.
+- La page **Covoiturage** récapitule désormais les deux désignations par déplacement.
+- L'URL de `app.js` / `config.js` / `styles.css` dans `index.html` change de version pour éviter l'ancienne version restée en cache.
+- Le service worker actualisé privilégie le réseau pour les ressources non sensibles et réactualise son cache.
+
+### Installation V9
+1. Si ce n'est pas déjà fait, exécuter `supabase/migration_v8.sql` dans Supabase SQL Editor (une seule fois).
+2. Sur GitHub remplacer **index.html**, **app.js**, **styles.css** et **service-worker.js**.
+3. Ne PAS remplacer **config.js** de production. Aucune nouvelle migration SQL par rapport à la V8.
+4. Déployer GitHub Pages puis recharger avec Ctrl+F5. Sur PWA déjà installée, la fermer et rouvrir (ou réinstaller si le cache persiste).
+5. Ouvrir un **match en déplacement** en mode coach : les deux lignes et le bouton de tirage doivent être visibles. Sélectionner au moins deux joueurs actifs et enregistrer les convocations avant le tirage.

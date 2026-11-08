@@ -24,3 +24,7 @@
 
 /* V7 : logo officiel JS Dottignies, proportions préservées */
 .brand img{width:74px;height:58px;object-fit:contain;flex-shrink:0}.brand{gap:9px}.brand strong{font-size:20px}.login-crest img{width:170px;height:124px;object-fit:contain;margin-bottom:19px}.mobile-brand img{width:55px;height:40px;object-fit:contain}@media(max-width:1050px){.brand img{width:62px;height:50px}.brand strong{font-size:18px}}@media(max-width:760px){.login-crest img{width:150px;height:113px}}
+
+/* V9 – responsabilités visibles dans la vue des déplacements */
+.transport-roles{margin:14px 0 16px;border-top:1px solid rgba(255,255,255,.08);padding-top:12px;}
+.transport-roles .role-row{padding:9px 0;}
