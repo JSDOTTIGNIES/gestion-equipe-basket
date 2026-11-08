@@ -1,7 +1,7 @@
 /* JS Dottignies — interface GitHub Pages + Supabase */
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state = {db:null,user:null,coach:false,players:[],matches:[],selections:[],assignments:[],guardians:[],offers:[],links:[],responses:[],view:'matches'};
+const state = {db:null,user:null,coach:false,players:[],matches:[],selections:[],assignments:[],guardians:[],offers:[],links:[],responses:[],attendance:[],parentRoles:[],view:'matches'};
 const formatDate = (iso) => new Intl.DateTimeFormat('fr-BE',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(iso+'T12:00:00Z'));
 const month = (iso) => new Intl.DateTimeFormat('fr-BE',{month:'short',timeZone:'UTC'}).format(new Date(iso+'T12:00:00Z'));
 const hm = (t) => t ? String(t).slice(0,5).replace(':','h') : 'À définir';
@@ -16,14 +16,22 @@ async function boot(){
  state.db=window.supabase.createClient(window.JS_CONFIG.supabaseUrl,window.JS_CONFIG.supabaseAnonKey,{auth:{detectSessionInUrl:true,persistSession:true,autoRefreshToken:true}});
  state.db.auth.onAuthStateChange((_event,session)=>{state.user=session?.user||null;setTimeout(()=>refreshAuth(),0)});
  await refreshAuth();
+ await loadRegistrationPlayers();
 }
+
+async function loadRegistrationPlayers(){
+ try{const result=await state.db.rpc('list_public_players');if(result.error)throw result.error;
+ $('registerChild').innerHTML='<option value="">Choisir son enfant</option>'+(result.data||[]).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+ }catch(e){console.warn('Liste des joueurs inaccessible',e);}
+}
+
 let refreshing=false;
 async function refreshAuth(){
  if(refreshing)return;refreshing=true;
  try{
   const {data:{user},error}=await state.db.auth.getUser();if(error && error.name!=='AuthSessionMissingError')console.warn(error);
   state.user=user||null; $('setup').hidden=true;$('login').hidden=!!user;$('app').hidden=!user;$('logout').hidden=!user;
-  $('userEmail').textContent=user?.email===window.JS_CONFIG?.coachLoginEmail?'Coach':(user?.email||'');
+  $('userEmail').textContent=user?.email===window.JS_CONFIG?.coachLoginEmail?'Coach':(user?.email?.split('@')[0]||'');
   if(!user)return;
   const {data:profile,error:pErr}=await state.db.from('profiles').select('role').eq('id',user.id).maybeSingle();
   if(pErr)throw pErr;
@@ -33,10 +41,10 @@ async function refreshAuth(){
  }catch(e){toast('Erreur : '+e.message);console.error(e)}finally{refreshing=false}
 }
 async function loadAll(){
- const tables=['players','matches','selections','assignments','guardians','transport_offers','parent_link_requests','match_responses'];
- const queries=[state.db.from('players').select('*').order('name'),state.db.from('matches').select('*').order('match_date').order('match_time'),state.db.from('selections').select('*'),state.db.from('assignments').select('*'),state.db.from('guardians').select('*').order('name'),state.db.from('transport_offers').select('*'),state.db.from('parent_link_requests').select('*'),state.db.from('match_responses').select('*')];
+ const tables=['players','matches','selections','assignments','guardians','transport_offers','parent_link_requests','match_responses','child_attendance','parent_roles'];
+ const queries=[state.db.from('players').select('*').order('name'),state.db.from('matches').select('*').order('match_date').order('match_time'),state.db.from('selections').select('*'),state.db.from('assignments').select('*'),state.db.from('guardians').select('*').order('name'),state.db.from('transport_offers').select('*'),state.db.from('parent_link_requests').select('*'),state.db.from('match_responses').select('*'),state.db.from('child_attendance').select('*'),state.db.from('parent_roles').select('*')];
  const results=await Promise.all(queries);
- results.forEach((r,i)=>{if(r.error)throw r.error;state[({transport_offers:'offers',parent_link_requests:'links',match_responses:'responses'})[tables[i]]||tables[i]]=r.data||[]});
+ results.forEach((r,i)=>{if(r.error)throw r.error;state[({transport_offers:'offers',parent_link_requests:'links',match_responses:'responses',child_attendance:'attendance',parent_roles:'parentRoles'})[tables[i]]||tables[i]]=r.data||[]});
  renderAll();
 }
 function showView(view){if(view==='team'&&!state.coach)view='matches';state.view=view;for(const v of ['matches','transport','team'])$(v+'View').hidden=v!==view;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));const texts={matches:['Calendrier <em>des matchs.</em>','Suivez les rencontres, les convocations et les responsabilités.'],transport:['En route <em>ensemble.</em>','Organisez les voitures pour chaque déplacement.'],team:['Notre <em>effectif.</em>','Gérez les joueurs et les coordonnées des parents.']};$('pageTitle').innerHTML=texts[view][0];$('pageSubtitle').textContent=texts[view][1]}
@@ -63,11 +71,10 @@ function renderTransport(){const away=state.matches.filter(m=>!m.is_home);
  }).join(''):'<div class="empty">Aucun déplacement prévu.</div>';
 }
 function renderTeam(){
- const pending=state.links.filter(x=>x.status==='pending');
- $('pendingLinks').innerHTML=`<div class="team-card"><h3>Demandes d'association parent–joueur (${pending.length})</h3>${pending.length?pending.map(x=>`<div class="request-line"><span>${esc(x.parent_name)} · enfant : <b>${esc(state.players.find(p=>p.id===x.player_id)?.name||'')}</b></span><div><button class="button primary small" data-review="${x.id}" data-approve="yes">Valider</button> <button class="button small" data-review="${x.id}" data-approve="no">Refuser</button></div></div>`).join(''):'<p class="small-text">Aucune demande en attente.</p>'}</div>`;
+ $('pendingLinks').innerHTML='<div class="team-card"><h3>Parents inscrits</h3><p class="small-text">Les parents associent directement leur compte à leur enfant (Papa ou Maman). Aucune validation nécessaire.</p></div>';
  $('teamList').innerHTML=state.players.map(p=>{
  const guardians=state.guardians.filter(g=>g.player_id===p.id);
- return `<article class="team-card"><div style="display:flex;align-items:center;min-width:0"><span class="avatar">${esc(p.name.slice(0,1).toUpperCase())}</span><div><h3>${esc(p.name)}</h3><small>${guardians.length?guardians.map(g=>esc(g.name)+' · '+esc(g.email)).join(' / '):'Aucun parent renseigné'}</small></div></div><div class="team-actions"><button class="button small" data-guardian="${p.id}">+ Parent</button></div></article>`
+ return `<article class="team-card"><div style="display:flex;align-items:center;min-width:0"><span class="avatar">${esc(p.name.slice(0,1).toUpperCase())}</span><div><h3>${esc(p.name)}</h3><small>${guardians.length?guardians.map(g=>esc(g.name)).join(' / '):'Aucun parent renseigné'}</small></div></div><div class="team-actions"><button class="button small" data-guardian="${p.id}">+ Parent</button></div></article>`
  }).join('');
 }
 function assignmentsFor(id){return state.assignments.filter(a=>a.match_id===id)}
@@ -83,7 +90,7 @@ function openMatch(id){const m=state.matches.find(x=>x.id===id);if(!m)return;
  const assignmentsHtml=assigned.length?assigned.map(a=>`<div class="role-row"><span>${esc(a.role)}</span><b>Famille ${esc(state.players.find(p=>p.id===a.player_id)?.name||'?')}</b></div>`).join(''):'<p class="small-text">Pas encore de désignations. Le coach peut effectuer le tirage après les convocations.</p>';
  const players=state.players.filter(p=>p.active).map(p=>`<label class="check-player"><input type="checkbox" name="selected" value="${p.id}" ${selected.includes(p.id)?'checked':''}>${esc(p.name)}</label>`).join('');
  showModal(`<span class="chip ${m.is_home?'':'away'}">${m.is_home?'À DOMICILE':'EN DÉPLACEMENT'}</span><h2 id="modalTitle">JS Dottignies – ${esc(rival(m))}</h2><p class="modal-lead">${esc(formatDate(m.match_date))} à ${hm(m.match_time)} · ${esc(m.venue||'Salle à définir')}<br>${esc(m.competition||'U14')} · ${esc(m.external_id||'')}</p><div class="row-between"><span><b>Rendez-vous</b> : ${esc(m.meeting_location||'À définir')} à ${hm(m.meeting_time)}${m.is_home?'':`<br><b>Départ</b> : ${hm(m.departure_time)}`}</span></div>${m.notes?`<p class="alert">${esc(m.notes)}</p>`:''}
- <div class="modal-section"><h3>Joueurs convoqués (${selected.length})</h3>${state.coach?`<div class="coach-replies">${selected.map(pid=>{const p=state.players.find(p=>p.id===pid);const resp=state.responses.filter(r=>r.match_id===id&&state.guardians.some(g=>g.id===r.guardian_id&&g.player_id===pid));return `<p class="small-text"><b>${esc(p?.name||'')}</b> — ${resp.length?resp.map(r=>r.attendance==='yes'?'Présent':'Absent').join(' / '):'En attente de réponse'}</p>`}).join('')}</div>`:''}${state.coach?`<form id="selectionForm"><div class="check-grid">${players}</div><div class="form-actions"><button type="submit" class="button primary small">Enregistrer la sélection</button></div></form>`:`<p class="small-text">${selectedNames.length?selectedNames.map(esc).join(' · '):'Sélection non communiquée'}</p>`}</div>
+ <div class="modal-section"><h3>Joueurs convoqués (${selected.length})</h3>${state.coach?`<div class="coach-replies">${selected.map(pid=>{const p=state.players.find(p=>p.id===pid);const reply=state.attendance.find(r=>r.match_id===id&&r.player_id===pid);return `<p class="small-text"><b>${esc(p?.name||'')}</b> — ${reply?(reply.attendance==='yes'?'Présent':'Absent'):'En attente de réponse'}</p>`}).join('')}</div>`:''}${state.coach?`<form id="selectionForm"><div class="check-grid">${players}</div><div class="form-actions"><button type="submit" class="button primary small">Enregistrer la sélection</button></div></form>`:`<p class="small-text">${selectedNames.length?selectedNames.map(esc).join(' · '):'Sélection non communiquée'}</p>`}</div>
  ${m.is_home?`<div class="modal-section"><h3>Désignations des parents</h3><div class="role-list">${assignmentsHtml}</div>${state.coach?'<div class="form-actions"><button id="drawButton" class="button primary small">🎲 Tirage automatique équilibré</button></div><p class="small-text">Nouveau tirage : les désignations existantes du match sont remplacées.</p>':'<p class="small-text">Un parent de chaque joueur désigné assure la fonction indiquée.</p>'}</div>`:`<div class="modal-section"><h3>Transport</h3><p class="small-text">Les parents renseignent leurs disponibilités dans l’onglet Covoiturage.</p><button class="button small" id="toTransport">Voir les voitures proposées</button></div>`}
  ${!state.coach?`<div class="modal-section"><h3>Ma réponse</h3>${parentReplyButtons(m)}</div>`:''}
  ${state.coach?`<div class="modal-section"><h3>Organisation du rendez-vous</h3>${meetingFields(m)}</div>`:''}`);
@@ -113,32 +120,27 @@ function openGuardian(pid){const p=state.players.find(x=>x.id===pid);if(!p||!sta
 // Espace parent : demande d'association validée par le coach, réponse par enfant convoqué.
 function myGuardians(){return state.guardians.filter(g=>g.email.toLowerCase()===(state.user?.email||'').toLowerCase());}
 function parentReplyButtons(m){
- const mine=myGuardians();
- if(!mine.length)return '<p class="small-text">Associez d’abord votre enfant depuis la page du calendrier.</p>';
+ const mine=myGuardians();if(!mine.length)return '<p class="small-text">Aucun joueur associé à votre compte.</p>';
  const selected=state.selections.filter(s=>s.match_id===m.id).map(s=>s.player_id);
- return mine.map(g=>{const child=state.players.find(p=>p.id===g.player_id);const reply=state.responses.find(r=>r.match_id===m.id&&r.guardian_id===g.id);return `<div class="request-line"><span><b>${esc(child?.name||'Enfant')}</b> : ${selected.includes(g.player_id)?(reply?.attendance==='yes'?'Présent':reply?.attendance==='no'?'Absent':'Réponse attendue'):'Non convoqué'}</span>${selected.includes(g.player_id)?`<button class="button primary small" data-reply="${g.id}">Répondre</button>`:''}</div>`}).join('');
+ return mine.map(g=>{const child=state.players.find(p=>p.id===g.player_id);const reply=state.attendance.find(r=>r.match_id===m.id&&r.player_id===g.player_id);return `<div class="request-line"><span><b>${esc(child?.name||'Enfant')}</b> : ${selected.includes(g.player_id)?(reply?.attendance==='yes'?'Présent':reply?.attendance==='no'?'Absent':'Réponse attendue'):'Non convoqué'}</span>${selected.includes(g.player_id)?`<button class="button primary small" data-reply="${g.id}">Répondre</button>`:''}</div>`}).join('');
 }
 function renderFamily(){
- const panel=$('familyPanel');panel.hidden=state.coach||!state.user;
- if(panel.hidden)return;
- const mine=myGuardians();const pending=state.links.filter(l=>l.user_id===state.user.id&&l.status==='pending');
- const possible=state.players.filter(p=>p.active&&!mine.some(g=>g.player_id===p.id)&&!pending.some(l=>l.player_id===p.id));
- const replies=state.matches.flatMap(m=>mine.filter(g=>state.selections.some(s=>s.match_id===m.id&&s.player_id===g.player_id)).map(g=>({m,g,r:state.responses.find(r=>r.match_id===m.id&&r.guardian_id===g.id)})));
- panel.innerHTML=`<div class="family-head"><h2>Mes enfants & convocations</h2><button type="button" class="button small" id="installApp">📲 Installer l'application</button></div><p class="small-text">Compte : ${esc(state.user.email)}. La session est conservée sur ce téléphone tant qu'elle reste valide.</p><div class="family-children">${mine.length?`<p><b>Enfant(s) lié(s) :</b> ${mine.map(g=>esc(state.players.find(p=>p.id===g.player_id)?.name||'')).join(' · ')}</p>`:''}${pending.length?`<p class="small-text">Validation du coach en attente pour : ${pending.map(l=>esc(state.players.find(p=>p.id===l.player_id)?.name||'')).join(', ')}.</p>`:''}</div><form id="linkPlayerForm" class="parent-inline"><label>Associer mon enfant</label><input name="parent_name" maxlength="100" placeholder="Votre prénom et nom" required><select name="player_id" required><option value="">Choisir son enfant</option>${possible.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="button primary small" type="submit" ${!possible.length?'disabled':''}>Demander l'association</button></form><h3>Mes convocations</h3>${replies.length?replies.map(({m,g,r})=>`<div class="request-line"><span><b>${esc(state.players.find(p=>p.id===g.player_id)?.name||'')}</b> · ${esc(formatDate(m.match_date))} · ${esc(rival(m))}<br><small>${r?('Réponse : '+(r.attendance==='yes'?'Présent':'Absent')):'Réponse attendue'}</small></span><button class="button primary small" data-reply="${g.id}" data-reply-match="${m.id}">Répondre</button></div>`).join(''):'<p class="small-text">Aucune convocation pour le moment.</p>'}<p class="small-text">Les notifications à distance nécessitent l'activation du service push côté Supabase. Le calendrier et vos réponses restent disponibles depuis l'application installée.</p>`;
- $('linkPlayerForm').addEventListener('submit',async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.target).entries());await action(async()=>{mustOk(await state.db.rpc('request_parent_link',{p_player_id:v.player_id,p_parent_name:v.parent_name.trim()}));await loadAll();toast('Demande envoyée au coach pour validation.')})});
+ const panel=$('familyPanel');panel.hidden=state.coach||!state.user;if(panel.hidden)return;
+ const mine=myGuardians();const role=state.parentRoles.find(r=>r.user_id===state.user.id);
+ const replies=state.matches.flatMap(m=>mine.filter(g=>state.selections.some(s=>s.match_id===m.id&&s.player_id===g.player_id)).map(g=>({m,g,r:state.attendance.find(r=>r.match_id===m.id&&r.player_id===g.player_id)})));
+ panel.innerHTML=`<div class="family-head"><h2>Mes enfants & convocations</h2><button type="button" class="button small" id="installApp">📲 Installer l'application</button></div><p class="small-text">Compte : ${esc(state.user.email?.split('@')[0]||'Parent')} · ${esc(role?.relationship||'Responsable')}. La session reste enregistrée sur votre téléphone tant qu'elle est valide.</p><div class="family-children">${mine.length?`<p><b>Mon enfant :</b> ${mine.map(g=>esc(state.players.find(p=>p.id===g.player_id)?.name||'')).join(' · ')}</p>`:'<p>Votre compte n’est pas encore lié à un joueur. Vous pouvez terminer l’association ci-dessous.</p><form id="finishParentLink" class="parent-inline"><input name="name" placeholder="Votre prénom et nom" required minlength="2" maxlength="100"><select name="player" required><option value="">Choisir son enfant</option>${state.players.filter(p=>p.active).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select><select name="relation"><option value="papa">Papa</option><option value="maman">Maman</option></select><button class="button primary small" type="submit">Associer mon enfant</button></form>'}</div><h3>Mes convocations</h3>${replies.length?replies.map(({m,g,r})=>`<div class="request-line"><span><b>${esc(state.players.find(p=>p.id===g.player_id)?.name||'')}</b> · ${esc(formatDate(m.match_date))} · ${esc(rival(m))}<br><small>${r?('Présence : '+(r.attendance==='yes'?'OUI':'NON')):'Réponse attendue'}</small></span><button class="button primary small" data-reply="${g.id}" data-reply-match="${m.id}">Répondre</button></div>`).join(''):'<p class="small-text">Aucune convocation pour le moment.</p>'}<p class="small-text">Les notifications push automatiques ne sont pas encore activées : le service d'envoi doit être configuré séparément.</p>`;
  document.querySelectorAll('[data-reply-match]').forEach(b=>b.addEventListener('click',()=>openReply(b.dataset.replyMatch,b.dataset.reply)));
+ const finish=$('finishParentLink');if(finish)finish.addEventListener('submit',async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.currentTarget).entries());await action(async()=>{mustOk(await state.db.rpc('claim_parent_role',{p_player_id:v.player,p_relationship:v.relation,p_display_name:v.name}));await loadAll();toast('Votre enfant est associé à votre compte.');})});
  $('installApp').addEventListener('click',installPwa);
 }
-async function reviewLink(id,approved){if(!state.coach)return;await action(async()=>{mustOk(await state.db.rpc('review_parent_link',{p_request_id:id,p_approve:approved}));await loadAll();toast(approved?'Parent associé au joueur':'Demande refusée')})}
 function openReply(matchId,guardianId){
  const m=state.matches.find(x=>x.id===matchId),g=myGuardians().find(x=>x.id===guardianId);if(!m||!g)return;
  if(!state.selections.some(s=>s.match_id===m.id&&s.player_id===g.player_id)){toast('Cet enfant n’est pas convoqué pour cette rencontre.');return;}
- const r=state.responses.find(x=>x.match_id===m.id&&x.guardian_id===g.id);
+ const r=state.responses.find(x=>x.match_id===m.id&&x.guardian_id===g.id);const childReply=state.attendance.find(x=>x.match_id===m.id&&x.player_id===g.player_id);
  const o=offerFor(matchId,guardianId);
- showModal(`<h2 id="modalTitle">Réponse à la convocation</h2><p class="modal-lead">${esc(state.players.find(p=>p.id===g.player_id)?.name||'')} · ${esc(formatDate(m.match_date))} · ${esc(rival(m))}</p><form id="parentReplyForm"><div class="form-grid"><div class="form-field full"><label>Mon enfant sera présent</label><select name="attendance"><option value="yes" ${r?.attendance==='yes'?'selected':''}>OUI</option><option value="no" ${r?.attendance==='no'?'selected':''}>NON</option></select></div><div class="form-field full"><label>Organisation du trajet</label><select name="travel"><option value="direct" ${r?.travel==='direct'?'selected':''}>Nous allons directement sur place</option><option value="car" ${r?.travel==='car'?'selected':''}>Je peux prendre des personnes dans ma voiture</option><option value="need_ride" ${r?.travel==='need_ride'?'selected':''}>Nous avons besoin d'une place</option><option value="none" ${r?.travel==='none'?'selected':''}>Pas de trajet (absent / sans objet)</option></select></div><div class="form-field full"><label>Places passagers disponibles (hors conducteur)</label><select name="seats">${Array.from({length:9},(_,i)=>`<option value="${i}" ${(r?.seats??0)===i?'selected':''}>${i}</option>`).join('')}</select></div></div><div class="form-actions"><button class="button primary" type="submit">Enregistrer ma réponse</button></div></form>`);
+ showModal(`<h2 id="modalTitle">Réponse à la convocation</h2><p class="modal-lead">${esc(state.players.find(p=>p.id===g.player_id)?.name||'')} · ${esc(formatDate(m.match_date))} · ${esc(rival(m))}</p><form id="parentReplyForm"><div class="form-grid"><div class="form-field full"><label>Mon enfant sera présent</label><select name="attendance"><option value="yes" ${childReply?.attendance==='yes'?'selected':''}>OUI</option><option value="no" ${childReply?.attendance==='no'?'selected':''}>NON</option></select></div><div class="form-field full"><label>Organisation du trajet</label><select name="travel"><option value="direct" ${r?.travel==='direct'?'selected':''}>Nous allons directement sur place</option><option value="car" ${r?.travel==='car'?'selected':''}>Je peux prendre des personnes dans ma voiture</option><option value="need_ride" ${r?.travel==='need_ride'?'selected':''}>Nous avons besoin d'une place</option><option value="none" ${r?.travel==='none'?'selected':''}>Pas de trajet (absent / sans objet)</option></select></div><div class="form-field full"><label>Places passagers disponibles (hors conducteur)</label><select name="seats">${Array.from({length:9},(_,i)=>`<option value="${i}" ${(r?.seats??0)===i?'selected':''}>${i}</option>`).join('')}</select></div></div><div class="form-actions"><button class="button primary" type="submit">Enregistrer ma réponse</button></div></form>`);
  $('parentReplyForm').addEventListener('submit',async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.target).entries());const yes=v.attendance==='yes',car=yes&&v.travel==='car',seats=car?Number(v.seats):0;await action(async()=>{
- mustOk(await state.db.from('match_responses').upsert({match_id:matchId,guardian_id:g.id,attendance:v.attendance,travel:yes?v.travel:'none',seats},{onConflict:'match_id,guardian_id'}));
- if(!m.is_home)mustOk(await state.db.from('transport_offers').upsert({match_id:matchId,guardian_id:g.id,available:car,seats,comment:yes?(v.travel==='direct'?'Trajet direct':v.travel==='need_ride'?'Recherche une place':''):''},{onConflict:'match_id,guardian_id'}));
+ mustOk(await state.db.rpc('save_parent_reply',{p_match_id:matchId,p_guardian_id:g.id,p_attendance:v.attendance,p_travel:yes?v.travel:'none',p_seats:seats}));
  await loadAll();closeModal();toast('Réponse enregistrée pour '+(state.players.find(p=>p.id===g.player_id)?.name||'votre enfant'))})});
 }
 let deferredInstall=null;
@@ -228,7 +230,23 @@ function closeModal(){$('modalRoot').hidden=true;$('modalBody').innerHTML='';doc
 document.addEventListener('click',e=>{const first=e.target.closest('[data-reply-first]');if(first){const mine=myGuardians();if(mine.length)openReply(first.dataset.replyFirst,mine[0].id);return;}const review=e.target.closest('[data-review]');if(review){reviewLink(review.dataset.review,review.dataset.approve==='yes');return;}const target=e.target.closest('[data-match],[data-offer],[data-guardian],[data-view],[data-close]');if(!target)return;if(target.dataset.close){closeModal();return}if(target.dataset.match){openMatch(target.dataset.match);return}if(target.dataset.offer){openOffer(target.dataset.offer);return}if(target.dataset.guardian){openGuardian(target.dataset.guardian);return}if(target.dataset.view){showView(target.dataset.view)}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
 $('matchFilter').addEventListener('change',renderMatches);
-$('loginForm').addEventListener('submit',async e=>{e.preventDefault();const email=$('loginEmail').value.trim().toLowerCase();await action(async()=>{const redirectTo=location.href.split('#')[0].split('?')[0];mustOk(await state.db.auth.signInWithOtp({email,options:{emailRedirectTo:redirectTo,shouldCreateUser:true}}));toast('Vérifiez votre e-mail : lien de connexion envoyé.')})});
+// Supabase Auth utilise une adresse technique (non affichée), aucun e-mail n'est envoyé.
+const parentEmail=username=>`${String(username).trim().toLowerCase()}@parents.jsdottignies.be`;
+const validUsername=username=>/^[a-zA-Z0-9_-]{4,24}$/.test(username);
+$('parentLoginTab').addEventListener('click',()=>{$('loginForm').hidden=false;$('registerForm').hidden=true;});
+$('parentRegisterTab').addEventListener('click',()=>{$('loginForm').hidden=true;$('registerForm').hidden=false;});
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();const username=$('parentUsername').value.trim().toLowerCase();if(!validUsername(username))return toast('Identifiant invalide');await action(async()=>{mustOk(await state.db.auth.signInWithPassword({email:parentEmail(username),password:$('parentPassword').value}));$('parentPassword').value='';await refreshAuth();toast('Connexion parent réussie.')})});
+$('registerForm').addEventListener('submit',async e=>{e.preventDefault();const username=$('registerUsername').value.trim().toLowerCase();const pass=$('registerPassword').value;const player=$('registerChild').value;const name=$('registerName').value.trim();const relationship=$('registerRelation').value;
+ if(!validUsername(username)||pass.length<8||!player||!name)return toast('Complétez les informations demandées.');
+ const button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;
+ try{
+  const r=await state.db.auth.signUp({email:parentEmail(username),password:pass,options:{data:{display_name:name}}});mustOk(r);
+  if(!r.data.session)throw Error('Supabase demande encore la confirmation e-mail. Désactivez « Confirm email » dans Authentication → Providers → Email.');
+  mustOk(await state.db.rpc('claim_parent_role',{p_player_id:player,p_relationship:relationship,p_display_name:name}));
+  $('registerPassword').value='';await refreshAuth();toast('Compte parent créé et enfant associé.');
+ }catch(err){console.error(err);toast('Inscription : '+(err.message||'Impossible de créer le compte'));}
+ finally{button.disabled=false}
+});
 $('coachLoginForm').addEventListener('submit',async e=>{
  e.preventDefault();
  const coachEmail=String(window.JS_CONFIG?.coachLoginEmail||'').trim().toLowerCase();

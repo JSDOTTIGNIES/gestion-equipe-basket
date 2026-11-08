@@ -1,47 +1,31 @@
-# JS Dottignies U14 — V5 : espace parents et installation mobile
+# JS Dottignies — V6 : parents sans e-mail, Papa et Maman
 
-## Ce qui est ajouté
+## Fonctionnement
 
-- Un parent se connecte avec le lien envoyé par e-mail, puis choisit son enfant dans la liste et saisit son nom.
-- Pour protéger les joueurs, l'association est une **demande**. Le coach la valide dans **Effectif & parents**. Le compte parent est ensuite lié au(x) joueur(s) concerné(s).
-- Le parent peut répondre pour chaque enfant effectivement convoqué : **Présent OUI/NON**, **nous allons directement sur place**, **je propose ma voiture**, **j'ai besoin d'une place**, et nombre de places passagers (0 à 8). Les matchs à l'extérieur alimentent aussi le récapitulatif de covoiturage.
-- Le coach voit les demandes en attente et les réponses de présence dans le détail du match.
-- L'application est installable sur l'écran d'accueil via le manifeste PWA, un service worker et les icônes du logo officiel JS Dottignies. Supabase conserve la session sur l'appareil tant que la session reste valide.
+- Chaque parent choisit un **identifiant** de 4 à 24 caractères et un **code personnel** de 8 caractères minimum. **Aucune adresse e-mail à saisir ou à confirmer**.
+- Au premier accès, il saisit son nom, sélectionne son enfant et choisit **Papa** ou **Maman**. L'association est immédiate, sans validation du coach.
+- **Deux comptes maximum par joueur** : un Papa et une Maman. Un parent ne peut associer qu'un enfant à ce compte (version actuelle).
+- La **présence OUI/NON** est unique par joueur et par match, donc partagée entre ses parents. **Trajet et places de voiture** restent propres à chacun.
+- L'accès coach par code est conservé, avec les matchs, convocations et tirages.
+- La PWA peut être installée sur le téléphone; les sessions sont conservées tant qu'elles restent valides.
+- **Les notifications push automatiques ne sont pas encore activées**, faute de service d'envoi serveur et de souscription des téléphones.
 
-## Installation sur votre projet existant
+## Installer sur le projet Supabase existant
 
-1. **Supabase → SQL Editor → New query** : copier et exécuter **une fois** `supabase/migration_v5.sql`. Ne pas réexécuter `schema.sql` ou `seed.sql` et ne pas vider les tables.
-2. **GitHub → dépôt JSDOTTIGNIES/gestion-equipe-basket** : remplacer `index.html`, `app.js`, `styles.css`; ajouter `manifest.webmanifest`, `service-worker.js`, `assets/icon-192.png`, `assets/icon-512.png`.
-3. **Ne PAS écraser `config.js`** : conserver l'URL Supabase, la publishable key et `coachLoginEmail`.
-4. Attendre le statut vert du dernier déploiement dans GitHub Actions, puis recharger l'application une fois avec Ctrl+F5.
-5. Tester avec **un compte parent** et un compte coach. L'association proposée par le parent doit apparaître en attente dans **Effectif & parents**. La validation doit rendre le joueur disponible dans « Mes enfants ».
-6. Tester : convocation d'un joueur par le coach, réponse OUI/NON du parent, offre de places et affichage côté coach.
+1. Dans **Supabase > Authentication > Sign In / Providers > Email**, **désactiver Confirm email**. Conserver l'authentification par e-mail/mot de passe activée. Cela est nécessaire à la création des comptes techniques sans boîte e-mail. Ne désactivez pas les règles RLS. Cette modification affecte tous les utilisateurs de ce projet Supabase uniquement (pas le projet Saint-Nicolas séparé).
+2. Dans **Supabase > SQL Editor > New query**, exécuter **`supabase/migration_v6.sql`**, après avoir déjà installé la migration V5. Aucune donnée existante n'est effacée.
+3. Dans GitHub, remplacer `index.html`, `app.js`, `styles.css`, `service-worker.js`. Conserver `config.js` (le compte coach déjà configuré), les icônes et le manifeste.
+4. Vérifier que le dernier déploiement Pages est vert, puis rafraîchir l'application. Sur mobile, fermer et rouvrir la PWA pour déclencher la mise à jour du cache.
+5. Inscrire un premier parent, puis un second avec un identifiant différent pour le même enfant (Papa puis Maman). Tester ensuite une convocation et les deux modes de réponse.
 
-## Installer sur téléphone
+## Détail technique de l'authentification
 
-- **iPhone (Safari)** : ouvrir `https://jsdottignies.github.io/gestion-equipe-basket/`, menu Partager → **Sur l'écran d'accueil** → Ajouter. La PWA doit ensuite être lancée depuis son icône.
-- **Android (Chrome)** : ouvrir la même adresse, menu ⋮ → **Installer l'application** / **Ajouter à l'écran d'accueil**.
-- La connexion est maintenue par Supabase `persistSession`, sous réserve de validité de la session. Sur iPhone, Safari et l'app installée peuvent avoir des stockages distincts : une première connexion depuis l'app installée peut être nécessaire.
+Supabase Auth n'a pas de connexion native par identifiant libre sans e-mail. Cette V6 utilise en interne une **adresse technique non destinée à recevoir des messages** : `identifiant@parents.jsdottignies.be` avec Auth email/password. Les parents ne voient ni ne saisissent cette adresse. **Le domaine devrait être contrôlé par le club pour une utilisation de production**. L'utilisateur créé reçoit un profil Supabase `parent`; aucune clé secrète n'est placée sur GitHub. Désactiver la confirmation d'e-mail rend le flux possible, mais rend aussi le compte impossible à vérifier par e-mail.
 
-## Notifications importantes — état réel
+Cette méthode est une solution de transition adaptée à un petit groupe, **pas une preuve d'identité** : sans validation parentale, une personne qui connaît les noms peut réserver un rôle Papa/Maman, consulter les convocations de cet enfant et répondre à sa place. Avant le lancement réel, mettre au minimum un **code d'invitation partagé hors de l'application** ou un code privé par famille, vérifier les politiques RLS, et définir une procédure de récupération des codes (aucune récupération automatique par e-mail). Ajouter aussi une protection contre les tentatives répétées, surtout pour le code coach de 6 caractères.
 
-La V5 rend l'application installable et inclut une base technique de réception de push dans le service worker, **mais n'envoie pas encore de notifications distantes automatiques**. Les notifications lorsqu'une application est fermée nécessitent encore :
+## Limites
 
-1. L'inscription du téléphone auprès du service Web Push avec consentement explicite (et conservation sécurisée de son abonnement dans Supabase).
-2. Un composant serveur d'envoi (Supabase Edge Function avec VAPID ou service équivalent) et les secrets conservés côté serveur, jamais dans GitHub Pages.
-3. Le déclenchement serveur après une **nouvelle** convocation ou modification de convocation, avec dédoublonnage et lien vers le match.
-4. Les tests sur Android et iPhone (Web Push fonctionne sur iPhone pour les apps ajoutées à l'écran d'accueil depuis iOS 16.4).
-
-**Ne pas annoncer aux parents que les notifications automatiques sont actives avant d'avoir déployé et testé ce service.**
-
-## Sécurité et confidentialité
-
-- Un parent ne peut pas s'attribuer directement un joueur : le coach doit approuver la demande côté Supabase (`review_parent_link`).
-- Les réponses de présence sont protégées par RLS et liées à l'e-mail Supabase authentifié. Le coach voit les réponses et parents voient uniquement leurs propres réponses de présence.
-- Les parents doivent être informés de la visibilité des offres de covoiturage pour l'équipe. Limiter l'accès aux personnes concernées.
-- Éviter de placer des données personnelles de mineurs, mots de passe ou secrets de serveur dans un dépôt GitHub public.
-- L'accès coach par 2 lettres + 4 chiffres reste faible : prévoir des protections contre les tentatives répétées et une méthode de récupération sécurisée avant diffusion.
-
-## Remarque
-
-Le code et la syntaxe JavaScript ont été contrôlés localement. Le parcours complet Supabase et les téléphones réels **n'ont pas été testés**. Si Supabase renvoie une erreur SQL, **ne pas modifier les politiques de sécurité à l'aveugle** : consulter le message exact.
+- Les comptes parents V5 utilisant de vraies adresses e-mail ne sont pas supprimés, mais n'utilisent pas la nouvelle connexion par identifiant; ils nécessitent une migration manuelle s'ils doivent être conservés.
+- Un même parent ayant plusieurs enfants nécessite une évolution ultérieure des associations.
+- Ce paquet a été vérifié syntaxiquement, **pas testé de bout en bout sur votre projet Supabase de production**.

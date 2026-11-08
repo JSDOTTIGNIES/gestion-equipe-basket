@@ -19,3 +19,5 @@
 .parent-inline{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:16px 0 24px}.parent-inline label{width:100%;font-weight:700}.parent-inline input,.parent-inline select{min-width:180px;flex:1;background:#282932;color:#fff;border:1px solid #42424b;padding:12px;border-radius:8px}
 .request-line{display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #393942;padding:12px 2px;flex-wrap:wrap}.request-line small{color:#adb0c1}
 @media(max-width:650px){.family-panel{padding:15px}.parent-inline{display:grid;grid-template-columns:1fr}.request-line .button{width:auto}}
+
+.parent-tabs{display:flex;gap:8px;justify-content:center;margin:16px 0}.login-form[hidden]{display:none!important}.login-form>input,.login-form>select{display:block;width:100%;margin:6px 0 12px;padding:11px 12px;background:#292a34;color:white;border:1px solid #41424d;border-radius:8px}.login-form>label{display:block;margin-top:10px}.login-panel{max-width:580px}.login-panel form button{white-space:nowrap}
