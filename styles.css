@@ -21,3 +21,6 @@
 @media(max-width:650px){.family-panel{padding:15px}.parent-inline{display:grid;grid-template-columns:1fr}.request-line .button{width:auto}}
 
 .parent-tabs{display:flex;gap:8px;justify-content:center;margin:16px 0}.login-form[hidden]{display:none!important}.login-form>input,.login-form>select{display:block;width:100%;margin:6px 0 12px;padding:11px 12px;background:#292a34;color:white;border:1px solid #41424d;border-radius:8px}.login-form>label{display:block;margin-top:10px}.login-panel{max-width:580px}.login-panel form button{white-space:nowrap}
+
+/* V7 : logo officiel JS Dottignies, proportions préservées */
+.brand img{width:74px;height:58px;object-fit:contain;flex-shrink:0}.brand{gap:9px}.brand strong{font-size:20px}.login-crest img{width:170px;height:124px;object-fit:contain;margin-bottom:19px}.mobile-brand img{width:55px;height:40px;object-fit:contain}@media(max-width:1050px){.brand img{width:62px;height:50px}.brand strong{font-size:18px}}@media(max-width:760px){.login-crest img{width:150px;height:113px}}

@@ -29,3 +29,13 @@ Cette méthode est une solution de transition adaptée à un petit groupe, **pas
 - Les comptes parents V5 utilisant de vraies adresses e-mail ne sont pas supprimés, mais n'utilisent pas la nouvelle connexion par identifiant; ils nécessitent une migration manuelle s'ils doivent être conservés.
 - Un même parent ayant plusieurs enfants nécessite une évolution ultérieure des associations.
 - Ce paquet a été vérifié syntaxiquement, **pas testé de bout en bout sur votre projet Supabase de production**.
+
+
+## V7 — Logo officiel du club (08/11/2026)
+- Ajoute `assets/logo-officiel.png` (fichier original fourni, sans redessin).
+- Remplace les icônes `assets/icon-192.png` et `assets/icon-512.png` par des déclinaisons du logo officiel sur fond noir.
+- Affiche ce logo dans l'en-tête latéral, l'en-tête mobile et la page de connexion.
+- Nouvelle version de cache du service worker : `v7-logo`.
+- GitHub : transférer **le contenu** de cette archive à la racine du dépôt, en préservant `config.js`.
+- Aucun SQL supplémentaire et aucun changement du code parent/coach.
+- Les icônes sur téléphones déjà installés peuvent nécessiter une réinstallation pour être actualisées.
