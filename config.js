@@ -2,5 +2,5 @@
 // La clé PUBLISHABLE/ANON est prévue pour le navigateur ; ne jamais mettre la service_role ici.
 window.JS_CONFIG = {
   supabaseUrl: 'https://VOTRE-PROJET.supabase.co',
-  supabaseAnonKey: 'VOTRE_CLE_PUBLISHABLE_OU_ANON'
+  supabaseAnonKey: sb_publishable_Vmf5-hC6XwTB_L3UNlCrAw_7SJincJ4
 };
