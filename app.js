@@ -197,10 +197,23 @@ $('coachLoginForm').addEventListener('submit',async e=>{
  try{
   const result=await state.db.auth.signInWithPassword({email:coachEmail,password:code});
   mustOk(result);
+  // La mise à jour de session déclenche déjà refreshAuth via onAuthStateChange.
+  // Ne pas lire state.coach immédiatement : la requête de profil peut encore être en cours.
+  const authenticatedUser = result.data?.user;
+  if (!authenticatedUser?.id) throw new Error('Session coach non créée.');
+  const {data: coachProfile, error: roleError} = await state.db
+    .from('profiles').select('role').eq('id', authenticatedUser.id).maybeSingle();
+  if (roleError) throw new Error('Impossible de vérifier le rôle coach : ' + roleError.message);
+  if (coachProfile?.role !== 'coach') {
+    await state.db.auth.signOut();
+    toast('Le profil lié à ce compte n’a pas le rôle coach dans Supabase.');
+    return;
+  }
+  state.coach = true;
   $('coachCode').value='';
+  // refreshAuth est déclenché automatiquement et finalise l’affichage admin.
   await refreshAuth();
-  if(!state.coach){await state.db.auth.signOut();toast('Ce compte n’a pas encore le rôle coach dans Supabase.');}
- }catch(err){toast('Code incorrect ou compte coach non configuré.');console.warn('Connexion coach refusée',err?.message)}
+ }catch(err){toast('Connexion coach : '+(err?.message||'échec inconnu'));console.warn('Connexion coach refusée',err?.message)}
  finally{button.disabled=false}
 });
 $('logout').addEventListener('click',async()=>{if(!state.db)return;await state.db.auth.signOut();state.coach=false;state.user=null;closeModal();$('app').hidden=true;$('login').hidden=false;$('logout').hidden=true});
