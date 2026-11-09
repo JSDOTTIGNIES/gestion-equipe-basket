@@ -36,3 +36,10 @@
 .family-notification-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 .family-head{flex-wrap:wrap;gap:12px}
 @media(max-width:600px){.family-notification-actions{width:100%}.family-notification-actions .button{flex:1;min-width:140px}}
+
+/* V11.1 — liste nominative minimale des enfants à transporter */
+.ride-needs{margin:15px 0;border:1px solid #65505a;background:#30252e;border-radius:11px;padding:14px 16px}
+.ride-needs h4{font:900 20px 'Barlow Condensed',sans-serif;text-transform:uppercase;color:#ffb0be;margin:0 0 8px}
+.ride-needs p{margin:7px 0 10px;line-height:1.55}
+.ride-children{display:flex;flex-wrap:wrap;gap:8px}
+.ride-child{display:inline-flex;background:#53303d;border:1px solid #965264;color:#fff;padding:8px 12px;border-radius:8px;font-weight:800;font-size:13px}

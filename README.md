@@ -89,3 +89,12 @@ Ensuite exécuter le fichier `supabase/CONFIGURER_CRON_V11.sql` : une tâche app
 - Les liens n'incorporent aucun jeton d'authentification ; l'accès à la convocation reste protégé par la session Supabase.
 - Vérifier le RGPD, informer les parents et limiter la conservation des endpoints de notification.
 - **Non testé dans votre instance Supabase de production** ; valider la fonction, les secrets et le cron avant diffusion aux familles.
+
+
+## V11.1 — Enfants à transporter (déplacements)
+
+Cette mise à jour affiche dans l’onglet **Covoiturage**, pour chaque déplacement, une section **« Enfants à transporter »**. Le même encart apparaît dans la fiche d’un match à l’extérieur. Les noms proviennent automatiquement des réponses des parents : joueur convoqué, présence OUI et choix « Nous avons besoin d’une place ». Un même joueur n’apparaît qu’une fois, même avec Papa et Maman ; si l’autre parent déclare finalement un trajet direct ou une voiture, la demande disparaît.
+
+**Installation :** exécuter d’abord `supabase/migration_v11_1_covoiturage.sql` dans SQL Editor. Puis remplacer `app.js`, `styles.css`, `index.html` et `service-worker.js` dans GitHub. Conserver `config.js`, les secrets, la fonction `push-dispatch` et Cron : aucune modification n’est nécessaire de leur côté.
+
+**Accès :** cette liste nominative minimale est visible du coach et des parents d’un enfant convoqué pour cette rencontre, sans révéler les coordonnées des familles. Elle n’attribue pas automatiquement les places disponibles et ne garantit pas qu’une voiture a été trouvée.
