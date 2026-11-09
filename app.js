@@ -142,10 +142,10 @@ function renderFamily(){
  const panel=$('familyPanel');panel.hidden=state.coach||!state.user;if(panel.hidden)return;
  const mine=myGuardians();const role=state.parentRoles.find(r=>r.user_id===state.user.id);
  const replies=state.matches.flatMap(m=>mine.filter(g=>state.selections.some(s=>s.match_id===m.id&&s.player_id===g.player_id)).map(g=>({m,g,r:state.attendance.find(r=>r.match_id===m.id&&r.player_id===g.player_id)})));
- panel.innerHTML=`<div class="family-head"><h2>Mes enfants & convocations</h2><div class="family-notification-actions"><button type="button" class="button small" id="installApp">📲 Installer l'application</button><button type="button" class="button primary small" id="enablePush">🔔 Activer les notifications</button></div></div><p class="small-text">Compte : ${esc(state.user.email?.split('@')[0]||'Parent')} · ${esc(role?.relationship||'Responsable')}. La session reste enregistrée sur votre téléphone tant qu'elle est valide.</p><div class="family-children">${mine.length?`<p><b>Mon enfant :</b> ${mine.map(g=>esc(state.players.find(p=>p.id===g.player_id)?.name||'')).join(' · ')}</p>`:'<p>Votre compte n’est pas encore lié à un joueur. Vous pouvez terminer l’association ci-dessous.</p><form id="finishParentLink" class="parent-inline"><input name="name" placeholder="Votre prénom et nom" required minlength="2" maxlength="100"><select name="player" required><option value="">Choisir son enfant</option>${state.players.filter(p=>p.active).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select><select name="relation"><option value="papa">Papa</option><option value="maman">Maman</option></select><button class="button primary small" type="submit">Associer mon enfant</button></form>'}</div><h3>Mes convocations</h3>${replies.length?replies.map(({m,g,r})=>`<div class="request-line"><span><b>${esc(state.players.find(p=>p.id===g.player_id)?.name||'')}</b> · ${esc(formatDate(m.match_date))} · ${esc(rival(m))}<br><small>${r?('Présence : '+(r.attendance==='yes'?'OUI':'NON')):'Réponse attendue'}</small></span><button class="button primary small" data-reply="${g.id}" data-reply-match="${m.id}">Répondre</button></div>`).join(''):'<p class="small-text">Aucune convocation pour le moment.</p>'}<p class="small-text">Sur iPhone : installez d’abord l’application sur l’écran d’accueil puis appuyez sur « Activer les notifications ». Vous recevrez les convocations et les rappels 24 h avant les matchs sans réponse.</p>`;
+ panel.innerHTML=`<div class="family-head"><h2>Mes enfants & convocations</h2><div class="family-notification-actions"><button type="button" class="button small" id="installApp">📲 Installer l'application</button><button type="button" class="button primary small" id="enablePush">🔔 Activer les notifications</button><button type="button" class="button small" id="disablePush" hidden>🔕 Désactiver les notifications</button><span class="small-text" id="pushStatus" aria-live="polite"></span></div></div><p class="small-text">Compte : ${esc(state.user.email?.split('@')[0]||'Parent')} · ${esc(role?.relationship||'Responsable')}. La session reste enregistrée sur votre téléphone tant qu'elle est valide.</p><div class="family-children">${mine.length?`<p><b>Mon enfant :</b> ${mine.map(g=>esc(state.players.find(p=>p.id===g.player_id)?.name||'')).join(' · ')}</p>`:'<p>Votre compte n’est pas encore lié à un joueur. Vous pouvez terminer l’association ci-dessous.</p><form id="finishParentLink" class="parent-inline"><input name="name" placeholder="Votre prénom et nom" required minlength="2" maxlength="100"><select name="player" required><option value="">Choisir son enfant</option>${state.players.filter(p=>p.active).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select><select name="relation"><option value="papa">Papa</option><option value="maman">Maman</option></select><button class="button primary small" type="submit">Associer mon enfant</button></form>'}</div><h3>Mes convocations</h3>${replies.length?replies.map(({m,g,r})=>`<div class="request-line"><span><b>${esc(state.players.find(p=>p.id===g.player_id)?.name||'')}</b> · ${esc(formatDate(m.match_date))} · ${esc(rival(m))}<br><small>${r?('Présence : '+(r.attendance==='yes'?'OUI':'NON')):'Réponse attendue'}</small></span><button class="button primary small" data-reply="${g.id}" data-reply-match="${m.id}">Répondre</button></div>`).join(''):'<p class="small-text">Aucune convocation pour le moment.</p>'}<p class="small-text">Sur iPhone : installez d’abord l’application sur l’écran d’accueil puis appuyez sur « Activer les notifications ». Vous recevrez les convocations et les rappels 24 h avant les matchs sans réponse.</p>`;
  document.querySelectorAll('[data-reply-match]').forEach(b=>b.addEventListener('click',()=>openReply(b.dataset.replyMatch,b.dataset.reply)));
  const finish=$('finishParentLink');if(finish)finish.addEventListener('submit',async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.currentTarget).entries());await action(async()=>{mustOk(await state.db.rpc('claim_parent_role',{p_player_id:v.player,p_relationship:v.relation,p_display_name:v.name}));await loadAll();toast('Votre enfant est associé à votre compte.');})});
- $('installApp').addEventListener('click',installPwa);$('enablePush')?.addEventListener('click',enablePushNotifications);
+ $('installApp').addEventListener('click',installPwa);$('enablePush')?.addEventListener('click',enablePushNotifications);$('disablePush')?.addEventListener('click',disablePushNotifications);refreshPushButtons();
 }
 function openReply(matchId,guardianId){
  const m=state.matches.find(x=>x.id===matchId),g=myGuardians().find(x=>x.id===guardianId);if(!m||!g)return;
@@ -160,7 +160,7 @@ function openReply(matchId,guardianId){
 let deferredInstall=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e});
 async function installPwa(){if(deferredInstall){deferredInstall.prompt();deferredInstall=null;return;}toast('iPhone : Partager → Sur l’écran d’accueil. Android : menu du navigateur → Installer l’application.');}
-if('serviceWorker' in navigator && location.protocol==='https:')window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js?v=11-1').catch(console.warn));
+if('serviceWorker' in navigator && location.protocol==='https:')window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js?v=11-2').catch(console.warn));
 
 // Notifications Web Push : demande d'autorisation uniquement après un clic explicite.
 function decodeVapidKey(base64){
@@ -186,8 +186,46 @@ async function enablePushNotifications(){
    user_id:state.user.id,endpoint:subscription.endpoint,p256dh:json.keys?.p256dh,auth_secret:json.keys?.auth
   },{onConflict:'endpoint'});
   if(error)throw error;
-  toast('Notifications activées sur ce téléphone !');
+  toast('Notifications activées sur ce téléphone !');await refreshPushButtons();
  }catch(e){console.error('Push activation:',e);toast('Activation impossible : '+(e.message||'erreur inconnue'));}
+}
+// Désactivation locale : supprime uniquement l'abonnement de ce téléphone pour ce compte.
+// L'autorisation générale iOS/Android reste sous le contrôle des réglages système.
+async function refreshPushButtons(){
+ const activate=$('enablePush'),deactivate=$('disablePush'),status=$('pushStatus');
+ if(!activate||!deactivate||!status||!state.user||state.coach)return;
+ if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+  activate.hidden=false;deactivate.hidden=true;status.textContent='Notifications non disponibles dans ce navigateur.';return;
+ }
+ try{
+  const reg=await navigator.serviceWorker.ready;
+  const sub=await reg.pushManager.getSubscription();
+  // Protection contre un rafraîchissement déclenché lors d'une déconnexion.
+  if(!$('enablePush')||!state.user||state.coach)return;
+  activate.hidden=!!sub;deactivate.hidden=!sub;
+  status.textContent=sub?'Notifications activées sur ce téléphone':'Notifications désactivées sur ce téléphone';
+ }catch(e){console.warn('État des notifications indisponible',e);status.textContent='État des notifications indisponible.';}
+}
+async function disablePushNotifications(){
+ if(!state.user||state.coach)return;
+ if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+  toast('Les notifications ne sont pas disponibles sur ce navigateur.');return;
+ }
+ const button=$('disablePush');if(button)button.disabled=true;
+ try{
+  const reg=await navigator.serviceWorker.ready;
+  const sub=await reg.pushManager.getSubscription();
+  if(!sub){toast('Les notifications sont déjà désactivées sur ce téléphone.');return;}
+  // Supprimer la destination côté serveur avant de désabonner ce téléphone.
+  // En cas d'échec, on garde la souscription afin de pouvoir réessayer.
+  const {error}=await state.db.from('push_subscriptions').delete()
+   .eq('user_id',state.user.id).eq('endpoint',sub.endpoint);
+  if(error)throw error;
+  const removed=await sub.unsubscribe();
+  if(!removed)throw new Error('Désabonnement du navigateur non confirmé. Réessayez.');
+  toast('Notifications désactivées sur ce téléphone.');
+ }catch(e){console.error('Désactivation des notifications:',e);toast('Désactivation impossible : '+(e.message||'erreur inconnue'));}
+ finally{if(button)button.disabled=false;await refreshPushButtons();}
 }
 let notificationLinkHandled=false;
 function openNotificationDeepLink(){

@@ -1,3 +1,18 @@
+# JS Dottignies V11.2 — Désactivation des notifications
+
+Cette mise à jour ajoute le bouton **🔕 Désactiver les notifications** dans « Mes enfants & convocations ». Le parent peut supprimer son abonnement push pour **ce téléphone uniquement**, sans se déconnecter ni modifier les convocations, le covoiturage ou les notifications de l'autre parent.
+
+- Après activation, le bouton « Désactiver » apparaît à la place du bouton « Activer ».
+- Après désactivation, le bouton « Activer » réapparaît.
+- Le téléphone n'est plus abonné. L'autorisation système iOS/Android reste gérée dans les paramètres du téléphone.
+- L'application a déjà les règles Supabase `DELETE` nécessaires (migration V11). **Aucun nouveau SQL, secret ou Cron n'est requis.**
+
+## Déploiement GitHub
+Remplacer `index.html`, `app.js` et `service-worker.js` par ceux de ce ZIP. Aucun changement de `styles.css` n'est requis. Ne pas écraser `config.js` : conserver la configuration du projet et la clé VAPID publique.
+
+## Test
+Sur un téléphone avec notifications activées, ouvrir l'application installée, se connecter comme parent et toucher « Désactiver les notifications ». Vérifier que « Activer les notifications » revient, puis réactiver si souhaité. Sur iPhone, tester depuis l'application ajoutée à l'écran d'accueil.
+
 # JS Dottignies — V11 Notifications (rappel 24 heures avant)
 
 Version basée sur **V10 Certificats médicaux**. Tous les éléments de V10 sont conservés : connexion coach, parents sans e-mail, Papa/Maman, calendrier, désignations domicile/déplacement, stockage privé des certificats.
@@ -89,12 +104,3 @@ Ensuite exécuter le fichier `supabase/CONFIGURER_CRON_V11.sql` : une tâche app
 - Les liens n'incorporent aucun jeton d'authentification ; l'accès à la convocation reste protégé par la session Supabase.
 - Vérifier le RGPD, informer les parents et limiter la conservation des endpoints de notification.
 - **Non testé dans votre instance Supabase de production** ; valider la fonction, les secrets et le cron avant diffusion aux familles.
-
-
-## V11.1 — Enfants à transporter (déplacements)
-
-Cette mise à jour affiche dans l’onglet **Covoiturage**, pour chaque déplacement, une section **« Enfants à transporter »**. Le même encart apparaît dans la fiche d’un match à l’extérieur. Les noms proviennent automatiquement des réponses des parents : joueur convoqué, présence OUI et choix « Nous avons besoin d’une place ». Un même joueur n’apparaît qu’une fois, même avec Papa et Maman ; si l’autre parent déclare finalement un trajet direct ou une voiture, la demande disparaît.
-
-**Installation :** exécuter d’abord `supabase/migration_v11_1_covoiturage.sql` dans SQL Editor. Puis remplacer `app.js`, `styles.css`, `index.html` et `service-worker.js` dans GitHub. Conserver `config.js`, les secrets, la fonction `push-dispatch` et Cron : aucune modification n’est nécessaire de leur côté.
-
-**Accès :** cette liste nominative minimale est visible du coach et des parents d’un enfant convoqué pour cette rencontre, sans révéler les coordonnées des familles. Elle n’attribue pas automatiquement les places disponibles et ne garantit pas qu’une voiture a été trouvée.
