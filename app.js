@@ -37,7 +37,7 @@ async function refreshAuth(){
   if(pErr)throw pErr;
   state.coach=profile?.role==='coach';$('roleBadge').textContent=state.coach?'ACCÈS COACH':'ESPACE PARENT';
   document.querySelectorAll('.admin-only').forEach(x=>x.hidden=!state.coach);
-  await loadAll();if(state.coach)await loadCertificates();else state.certificates=[];showView(state.view);
+  await loadAll();if(state.coach)await loadCertificates();else state.certificates=[];showView(state.view);openNotificationDeepLink();
  }catch(e){toast('Erreur : '+e.message);console.error(e)}finally{refreshing=false}
 }
 async function loadAll(){
@@ -129,10 +129,10 @@ function renderFamily(){
  const panel=$('familyPanel');panel.hidden=state.coach||!state.user;if(panel.hidden)return;
  const mine=myGuardians();const role=state.parentRoles.find(r=>r.user_id===state.user.id);
  const replies=state.matches.flatMap(m=>mine.filter(g=>state.selections.some(s=>s.match_id===m.id&&s.player_id===g.player_id)).map(g=>({m,g,r:state.attendance.find(r=>r.match_id===m.id&&r.player_id===g.player_id)})));
- panel.innerHTML=`<div class="family-head"><h2>Mes enfants & convocations</h2><button type="button" class="button small" id="installApp">📲 Installer l'application</button></div><p class="small-text">Compte : ${esc(state.user.email?.split('@')[0]||'Parent')} · ${esc(role?.relationship||'Responsable')}. La session reste enregistrée sur votre téléphone tant qu'elle est valide.</p><div class="family-children">${mine.length?`<p><b>Mon enfant :</b> ${mine.map(g=>esc(state.players.find(p=>p.id===g.player_id)?.name||'')).join(' · ')}</p>`:'<p>Votre compte n’est pas encore lié à un joueur. Vous pouvez terminer l’association ci-dessous.</p><form id="finishParentLink" class="parent-inline"><input name="name" placeholder="Votre prénom et nom" required minlength="2" maxlength="100"><select name="player" required><option value="">Choisir son enfant</option>${state.players.filter(p=>p.active).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select><select name="relation"><option value="papa">Papa</option><option value="maman">Maman</option></select><button class="button primary small" type="submit">Associer mon enfant</button></form>'}</div><h3>Mes convocations</h3>${replies.length?replies.map(({m,g,r})=>`<div class="request-line"><span><b>${esc(state.players.find(p=>p.id===g.player_id)?.name||'')}</b> · ${esc(formatDate(m.match_date))} · ${esc(rival(m))}<br><small>${r?('Présence : '+(r.attendance==='yes'?'OUI':'NON')):'Réponse attendue'}</small></span><button class="button primary small" data-reply="${g.id}" data-reply-match="${m.id}">Répondre</button></div>`).join(''):'<p class="small-text">Aucune convocation pour le moment.</p>'}<p class="small-text">Les notifications push automatiques ne sont pas encore activées : le service d'envoi doit être configuré séparément.</p>`;
+ panel.innerHTML=`<div class="family-head"><h2>Mes enfants & convocations</h2><div class="family-notification-actions"><button type="button" class="button small" id="installApp">📲 Installer l'application</button><button type="button" class="button primary small" id="enablePush">🔔 Activer les notifications</button></div></div><p class="small-text">Compte : ${esc(state.user.email?.split('@')[0]||'Parent')} · ${esc(role?.relationship||'Responsable')}. La session reste enregistrée sur votre téléphone tant qu'elle est valide.</p><div class="family-children">${mine.length?`<p><b>Mon enfant :</b> ${mine.map(g=>esc(state.players.find(p=>p.id===g.player_id)?.name||'')).join(' · ')}</p>`:'<p>Votre compte n’est pas encore lié à un joueur. Vous pouvez terminer l’association ci-dessous.</p><form id="finishParentLink" class="parent-inline"><input name="name" placeholder="Votre prénom et nom" required minlength="2" maxlength="100"><select name="player" required><option value="">Choisir son enfant</option>${state.players.filter(p=>p.active).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select><select name="relation"><option value="papa">Papa</option><option value="maman">Maman</option></select><button class="button primary small" type="submit">Associer mon enfant</button></form>'}</div><h3>Mes convocations</h3>${replies.length?replies.map(({m,g,r})=>`<div class="request-line"><span><b>${esc(state.players.find(p=>p.id===g.player_id)?.name||'')}</b> · ${esc(formatDate(m.match_date))} · ${esc(rival(m))}<br><small>${r?('Présence : '+(r.attendance==='yes'?'OUI':'NON')):'Réponse attendue'}</small></span><button class="button primary small" data-reply="${g.id}" data-reply-match="${m.id}">Répondre</button></div>`).join(''):'<p class="small-text">Aucune convocation pour le moment.</p>'}<p class="small-text">Sur iPhone : installez d’abord l’application sur l’écran d’accueil puis appuyez sur « Activer les notifications ». Vous recevrez les convocations et les rappels 24 h avant les matchs sans réponse.</p>`;
  document.querySelectorAll('[data-reply-match]').forEach(b=>b.addEventListener('click',()=>openReply(b.dataset.replyMatch,b.dataset.reply)));
  const finish=$('finishParentLink');if(finish)finish.addEventListener('submit',async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.currentTarget).entries());await action(async()=>{mustOk(await state.db.rpc('claim_parent_role',{p_player_id:v.player,p_relationship:v.relation,p_display_name:v.name}));await loadAll();toast('Votre enfant est associé à votre compte.');})});
- $('installApp').addEventListener('click',installPwa);
+ $('installApp').addEventListener('click',installPwa);$('enablePush')?.addEventListener('click',enablePushNotifications);
 }
 function openReply(matchId,guardianId){
  const m=state.matches.find(x=>x.id===matchId),g=myGuardians().find(x=>x.id===guardianId);if(!m||!g)return;
@@ -147,7 +147,46 @@ function openReply(matchId,guardianId){
 let deferredInstall=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e});
 async function installPwa(){if(deferredInstall){deferredInstall.prompt();deferredInstall=null;return;}toast('iPhone : Partager → Sur l’écran d’accueil. Android : menu du navigateur → Installer l’application.');}
-if('serviceWorker' in navigator && location.protocol==='https:')window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js?v=9').catch(console.warn));
+if('serviceWorker' in navigator && location.protocol==='https:')window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js?v=11').catch(console.warn));
+
+// Notifications Web Push : demande d'autorisation uniquement après un clic explicite.
+function decodeVapidKey(base64){
+ const normalized=base64.replace(/-/g,'+').replace(/_/g,'/');
+ const bin=atob(normalized+'='.repeat((4-normalized.length%4)%4));
+ return Uint8Array.from(bin,c=>c.charCodeAt(0));
+}
+async function enablePushNotifications(){
+ if(!state.user||state.coach){toast('Connectez-vous en tant que parent.');return;}
+ if(!window.JS_CONFIG?.pushPublicKey){toast('Notifications non configurées : ajoutez la clé publique VAPID dans config.js.');return;}
+ if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)){
+  toast('Sur iPhone, ouvrez l’application installée sur l’écran d’accueil (iOS 16.4 ou plus).');return;
+ }
+ try{
+  // Sur iPhone l'autorisation ne fonctionne que depuis une PWA installée, sur geste utilisateur.
+  const registration=await navigator.serviceWorker.ready;
+  const permission=await Notification.requestPermission();
+  if(permission!=='granted'){toast('Notifications non autorisées. Vérifiez les réglages du téléphone.');return;}
+  let subscription=await registration.pushManager.getSubscription();
+  if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:decodeVapidKey(window.JS_CONFIG.pushPublicKey)});
+  const json=subscription.toJSON();
+  const {error}=await state.db.from('push_subscriptions').upsert({
+   user_id:state.user.id,endpoint:subscription.endpoint,p256dh:json.keys?.p256dh,auth_secret:json.keys?.auth
+  },{onConflict:'endpoint'});
+  if(error)throw error;
+  toast('Notifications activées sur ce téléphone !');
+ }catch(e){console.error('Push activation:',e);toast('Activation impossible : '+(e.message||'erreur inconnue'));}
+}
+let notificationLinkHandled=false;
+function openNotificationDeepLink(){
+ if(notificationLinkHandled||!state.user||state.coach)return;
+ const id=new URLSearchParams(location.search).get('match');
+ if(!id||!state.matches.some(m=>m.id===id))return;
+ const guardian=myGuardians().find(g=>state.selections.some(s=>s.match_id===id&&s.player_id===g.player_id));
+ if(!guardian)return;
+ notificationLinkHandled=true;
+ history.replaceState({},'',location.pathname);
+ showView('matches');openReply(id,guardian.id);
+}
 
 // Gestion des rencontres : insertion manuelle et import Excel, réservés au coach.
 const localTeam = 'RU14H JS Dottignies';

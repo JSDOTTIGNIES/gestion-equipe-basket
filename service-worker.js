@@ -1,4 +1,4 @@
-const CACHE='jsdottignies-shell-v10-medical';
+const CACHE='jsdottignies-shell-v11-push';
 const SHELL=['./','./index.html','./styles.css','./assets/icon-192.png','./assets/icon-512.png','./assets/logo-officiel.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
@@ -8,6 +8,21 @@ self.addEventListener('fetch',e=>{
  if(e.request.mode==='navigate')e.respondWith(fetch(e.request).catch(()=>caches.match('./index.html')));
  else e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
 });
-// Les push distants nécessitent un service d'envoi sécurisé à configurer sur Supabase.
-self.addEventListener('push',e=>{if(!e.data)return;let payload={};try{payload=e.data.json()}catch{return}e.waitUntil(self.registration.showNotification(payload.title||'JS Dottignies',{body:payload.body||'Nouvelle convocation',icon:'./assets/icon-192.png',data:{url:'./'}}));});
-self.addEventListener('notificationclick',e=>{e.notification.close();e.waitUntil(self.clients.openWindow(e.notification.data?.url||'./'));});
+// Les notifications utilisent une souscription Web Push par téléphone, créée après consentement.
+self.addEventListener('push',event=>{
+ let payload={};try{payload=event.data?.json()||{}}catch{payload={body:event.data?.text()||''}}
+ event.waitUntil(self.registration.showNotification(payload.title||'JS Dottignies',{
+  body:payload.body||'Nouvelle convocation',
+  icon:'./assets/icon-192.png',badge:'./assets/icon-192.png',tag:'jsd-'+(payload.url||'new'),
+  data:{url:payload.url||'./'},
+ }));
+});
+self.addEventListener('notificationclick',event=>{
+ event.notification.close();
+ const url=new URL(event.notification.data?.url||'./',self.registration.scope).href;
+ event.waitUntil((async()=>{
+  const windows=await clients.matchAll({type:'window',includeUncontrolled:true});
+  for(const client of windows){if(client.url.startsWith(self.registration.scope)){await client.navigate(url);return client.focus()}}
+  return clients.openWindow(url);
+ })());
+});

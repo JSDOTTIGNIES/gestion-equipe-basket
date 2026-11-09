@@ -31,3 +31,8 @@
 
 /* V10 : onglet certificats médicaux — coach uniquement */
 .certificates-list{display:grid;gap:14px}.cert-player-card{border:1px solid #373844;background:#1e1f27;border-radius:13px;padding:19px}.cert-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.cert-head strong{font:900 26px 'Barlow Condensed';text-transform:uppercase}.cert-head small,.cert-file small{display:block;color:#aaa9b4;margin-top:6px;font-size:12px}.cert-file{border-top:1px solid #393942;margin-top:13px;padding-top:13px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.cert-file b{overflow-wrap:anywhere}.cert-file .chip{margin-top:8px}.cert-actions{display:flex;gap:8px;flex-wrap:wrap}.cert-upload .form-field{margin-bottom:14px}.cert-upload input{width:100%;box-sizing:border-box}@media(max-width:600px){.cert-player-card{padding:14px}.cert-head strong{font-size:23px}}
+
+/* V11 — activation des notifications pour les familles */
+.family-notification-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.family-head{flex-wrap:wrap;gap:12px}
+@media(max-width:600px){.family-notification-actions{width:100%}.family-notification-actions .button{flex:1;min-width:140px}}
