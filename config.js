@@ -7,7 +7,3 @@ window.JS_CONFIG = {
   pushPublicKey: "J6zd2fgKJ42SRchwRA7ZKBTqdtHqW4rtdksrPah2Wmw"
 };
 
-  supabaseUrl: "https://hpqpvbyexpgzevbeeicp.supabase.co",
-  supabaseAnonKey: "sb_publishable_Vmf5-hC6XwTB_L3UNlCrAw_7SJincJ4",
-  coachLoginEmail: "coach@jsdottignies.be"
-};
